@@ -10,6 +10,7 @@
 #include <memory>
 #include <regex>
 #include <cassert>
+#include <sstream>
 
 void create_table(pqxx::connection& c)
 {
@@ -110,7 +111,8 @@ int foo()
 
 std::timed_mutex mutex;
 
-typedef std::uint64_t 	order_id_t;
+//typedef std::uint64_t 	order_id_t;
+typedef int	 			order_id_t;
 typedef double			order_price_t;
 typedef double			order_size_t;
 
@@ -191,19 +193,143 @@ void list_waiting_orders()
 	}
 }
 
-order_id_t process_instant_order(order_action_t order_action, order_size_t order_size)
+//-----------------------------------------------------------------------------
+
+std::string order_action_to_string(order_action_t order_action)
 {
-	return 0;
+	return order_action_t::buy == order_action ? "buy" : "sell";
 }
 
-order_id_t process_waiting_order(
-	order_action_t 		order_action
+std::string order_wait_type_to_string(order_wait_type_t order_wait_type)
+{
+	return order_wait_type_t::limit == order_wait_type ? "limit" : "stop";
+}
+
+order_id_t insert_instant_order(pqxx::work & w, order_action_t order_action, order_price_t order_price)
+{
+	std::stringstream ss;
+
+	ss << "insert into instant_order (action, size) values ('"
+		<< order_action_to_string(order_action) << "', "
+		<< order_price
+		<< ") returning id"
+		;
+
+	std::string sql = ss.str();
+
+	pqxx::result r = w.exec(sql);
+
+	order_id_t order_id = 0;
+
+	for(pqxx::result::const_iterator i = r.begin(); i != r.end(); ++i)
+	{
+		order_id = i[0].as<int>();
+	}
+
+	return order_id;
+}
+
+order_id_t process_instant_order(pqxx::connection & c, order_action_t order_action, order_size_t order_size)
+{
+	order_id_t order_id = 0;
+
+	try
+	{
+		pqxx::work w(c);
+
+		order_id = insert_instant_order(w, order_action, order_size);
+
+		w.commit();
+	}
+	catch(const std::exception & e)
+	{
+		std::cerr << "ERROR: cought std exception! what(): '" << e.what() << "'" << std::endl;
+	}
+
+	return order_id;
+}
+
+//-----------------------------------------------------------------------------
+
+static order_id_t last_order_id = 0;
+
+order_id_t get_next_order_id()
+{
+	return ++last_order_id;
+}
+
+void set_last_order_id(order_id_t order_id)
+{
+	last_order_id = order_id;
+}
+
+order_id_t insert_waiting_order(
+	pqxx::work & w
+,	order_action_t 		order_action
 ,	order_wait_type_t 	order_wait_type
 ,	order_price_t 		order_price
 ,	order_size_t 		order_size
 )
 {
-	waiting_order_t order;
+	std::stringstream ss;
+
+	ss	<< "insert into waiting_order (price, size, action, wait_type) values ("
+		<< order_price << ", "
+		<< order_size << ", '"
+		<< order_action_to_string(order_action) << "', '"
+		<< order_wait_type_to_string(order_wait_type) << "') returning id"
+		;
+
+	std::string sql = ss.str();
+
+	pqxx::result r = w.exec(sql);
+
+	order_id_t order_id = 0;
+
+	for(auto i = r.begin(); i != r.end(); ++i)
+	{
+		order_id = i[0].as<int>();
+	}
+
+	return order_id;
+}
+
+//-----------------------------------------------------------------------------
+
+order_id_t process_waiting_order(
+	pqxx::connection&	c
+,	order_action_t 		order_action
+,	order_wait_type_t 	order_wait_type
+,	order_price_t 		order_price
+,	order_size_t 		order_size
+)
+{
+
+	pqxx::work w(c);
+
+	try
+	{
+
+		order_id_t order_id = insert_waiting_order(
+			w
+		,	order_action
+		,	order_wait_type
+		,	order_price
+		,	order_size
+		);
+
+		w.commit();
+
+		return order_id;
+	}
+//	catch(const pqxx::pqxx_exception & pqxx_e)
+//	{
+//		std::cerr << "ERROR: Caught pqxx exception!" << std::endl;
+//	}
+	catch(const std::exception & std_e)
+	{
+		std::cerr << "ERROR: Caught std exception! what(): " << std_e.what() << std::endl;
+	}
 
 	return 0;
 }
@@ -211,6 +337,12 @@ order_id_t process_waiting_order(
 void do_work()
 {
 	populate_map();
+
+	//-------------------------------------------------------------------------
+
+	pqxx::connection c("dbname=pqxx01");
+
+	//-------------------------------------------------------------------------
 
 	std::string s;
 
@@ -242,8 +374,10 @@ void do_work()
 				order_action_t 	order_action 	= "buy" == m.str(1) ? order_action_t::buy : order_action_t::sell;
 				order_size_t 	order_size 		= std::stoi(m.str(2));
 
-				order_id_t order_id = process_instant_order(order_action, order_size);
+				order_id_t order_id = process_instant_order(c, order_action, order_size);
 				assert(0 != order_id);
+
+				std::cout << order_id << std::endl;
 			}
 			else
 			{
@@ -262,13 +396,15 @@ void do_work()
 					std::cout << "m.str(3): '" << m.str(3) << "'" << std::endl;
 					std::cout << "m.str(4): '" << m.str(4) << "'" << std::endl;
 
-					order_action_t 		order_action 	= "buy" == m.str(1) ? order_action_t::buy : order_action_t::sell;
-					order_wait_type_t	order_wait_type	= "limit" == m.str(1) ? order_wait_type_t::limit : order_wait_type_t::stop;
-					order_price_t 		order_price 	= std::stoi(m.str(1));
-					order_size_t 		order_size 		= std::stoi(m.str(2));
+					order_action_t 		order_action 	= "buy"   == m.str(1) ? order_action_t::buy : order_action_t::sell;
+					order_wait_type_t	order_wait_type	= "limit" == m.str(2) ? order_wait_type_t::limit : order_wait_type_t::stop;
+					order_price_t 		order_price 	= std::stoi(m.str(3));
+					order_size_t 		order_size 		= std::stoi(m.str(4));
 
-					order_id_t order_id = process_waiting_order(order_action, order_wait_type, order_price, order_size);
+					order_id_t order_id = process_waiting_order(c, order_action, order_wait_type, order_price, order_size);
 					assert(0 != order_id);
+
+					std::cout << order_id << std::endl;
 				}
 				else
 				{
