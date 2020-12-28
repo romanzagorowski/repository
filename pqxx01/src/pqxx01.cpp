@@ -1,3 +1,5 @@
+#include "order.h"
+
 #include <iostream>
 #include <string>
 #include <pqxx/pqxx>
@@ -205,7 +207,7 @@ std::string order_wait_type_to_string(order_wait_type_t order_wait_type)
 	return order_wait_type_t::limit == order_wait_type ? "limit" : "stop";
 }
 
-order_id_t insert_instant_order(pqxx::work & w, order_action_t order_action, order_price_t order_price)
+std::string format_query(order_action_t order_action, order_price_t order_price)
 {
 	std::stringstream ss;
 
@@ -215,7 +217,12 @@ order_id_t insert_instant_order(pqxx::work & w, order_action_t order_action, ord
 		<< ") returning id"
 		;
 
-	std::string sql = ss.str();
+	return ss.str();
+}
+
+order_id_t insert_instant_order(pqxx::work & w, order_action_t order_action, order_price_t order_price)
+{
+	std::string sql = format_query(order_action, order_price);
 
 	pqxx::result r = w.exec(sql);
 
@@ -452,6 +459,8 @@ void do_test()
 
 int main()
 {
+	std::cout << "sizeof(order): " << sizeof(order) << std::endl;
+
 	//do_test();
 	do_work();
 }
