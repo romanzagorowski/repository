@@ -1,4 +1,5 @@
 #include "order.h"
+#include "market.h"
 
 #include <iostream>
 #include <string>
@@ -113,99 +114,36 @@ int foo()
 
 std::timed_mutex mutex;
 
-//typedef std::uint64_t 	order_id_t;
-typedef int	 			order_id_t;
-typedef double			order_price_t;
-typedef double			order_size_t;
-
 typedef std::tuple<order_price_t, order_id_t> price_key;
-
-enum class order_action_t { buy, sell };
-enum class order_wait_type_t { limit, stop };
-
-struct waiting_order_t
-{
-	order_id_t			id;
-	order_price_t		price;
-	order_size_t		size;
-	order_action_t		action;
-	order_wait_type_t	wait_type;
-};
-
-std::ostream& operator << (std::ostream& os, const waiting_order_t& wo)
-{
-	os << "{ ";
-	os << "id=" << wo.id;
-	os << ", price=" << wo.price;
-	os << ", size=" << wo.size;
-	os << ", action='" << (wo.action == order_action_t::buy ? "buy" : "sell") << "'";
-	os << ", wait_type='" << (wo.wait_type == order_wait_type_t::limit ? "limit" : "stop") << "'";
-	os << " }";
-	return os;
-}
-
-waiting_order_t a[] = {
-	{ 1, 1190, 1.7, order_action_t::buy, order_wait_type_t::limit }
-,	{ 2, 1180, 2.3, order_action_t::buy, order_wait_type_t::limit }
-,	{ 3, 1195, 0.7, order_action_t::buy, order_wait_type_t::limit }
-,	{ 4, 1185, 0.4, order_action_t::buy, order_wait_type_t::limit }
-,	{ 5, 1175, 0.8, order_action_t::buy, order_wait_type_t::limit }
-,	{ 6, 1199, 1.1, order_action_t::buy, order_wait_type_t::limit }
-,	{ 7, 1180, 1.1, order_action_t::buy, order_wait_type_t::limit }
-};
-
-using shared_waiting_order_t 	= std::shared_ptr<waiting_order_t>;
-using price_id_key_t 			= std::pair<order_price_t, order_id_t>;
-
-std::map<price_id_key_t, shared_waiting_order_t> m;
-
-void populate_map()
-{
-	std::unique_lock<std::timed_mutex> lock(mutex, std::chrono::seconds(1));
-
-	if(lock)
-	{
-		for(auto & x : a)
-		{
-			price_id_key_t k = std::make_pair(x.price, x.id);
-			shared_waiting_order_t v = std::make_shared<waiting_order_t>(x);
-			m.insert(std::make_pair(k, v));
-		}
-	}
-	else
-	{
-		std::cout << "ERROR: Unable to lock waiting order list for writing..." << std::endl;
-	}
-}
 
 void list_waiting_orders()
 {
-	std::unique_lock<std::timed_mutex> lock(mutex, std::chrono::seconds(1));
-
-	if(lock)
-	{
-		for(auto & a : m)
-		{
-			std::cout << *a.second << std::endl;
-		}
-	}
-	else
-	{
-		std::cout << "ERROR: Unable to lock waiting order list for reading..." << std::endl;
-	}
+//	std::unique_lock<std::timed_mutex> lock(mutex, std::chrono::seconds(1));
+//
+//	if(lock)
+//	{
+//		for(auto & a : m)
+//		{
+//			std::cout << *a.second << std::endl;
+//		}
+//	}
+//	else
+//	{
+//		std::cout << "ERROR: Unable to lock waiting order list for reading..." << std::endl;
+//	}
 }
 
 //-----------------------------------------------------------------------------
 
-std::string order_action_to_string(order_action_t order_action)
-{
-	return order_action_t::buy == order_action ? "buy" : "sell";
-}
+//std::string order_action_to_string(order_action_t order_action)
+//{
+//	return order_action_t::buy == order_action ? "buy" : "sell";
+//}
 
-std::string order_wait_type_to_string(order_wait_type_t order_wait_type)
-{
-	return order_wait_type_t::limit == order_wait_type ? "limit" : "stop";
-}
+//std::string order_wait_type_to_string(order_wait_type_t order_wait_type)
+//{
+//	return order_wait_type_t::limit == order_wait_type ? "limit" : "stop";
+//}
 
 std::string format_query(order_action_t order_action, order_price_t order_price)
 {
@@ -269,7 +207,7 @@ void set_last_order_id(order_id_t order_id)
 {
 	last_order_id = order_id;
 }
-
+/*
 order_id_t insert_waiting_order(
 	pqxx::work & w
 ,	order_action_t 		order_action
@@ -300,9 +238,10 @@ order_id_t insert_waiting_order(
 
 	return order_id;
 }
-
+*/
 //-----------------------------------------------------------------------------
 
+/*
 order_id_t process_waiting_order(
 	pqxx::connection&	c
 ,	order_action_t 		order_action
@@ -340,10 +279,11 @@ order_id_t process_waiting_order(
 
 	return 0;
 }
-
+*/
+/*
 void do_work()
 {
-	populate_map();
+	//populate_map();
 
 	//-------------------------------------------------------------------------
 
@@ -423,7 +363,7 @@ void do_work()
 
 	std::cout << "bye!" << std::endl;
 }
-
+*/
 void do_test()
 {
 	std::regex_constants::syntax_option_type a[] = {
@@ -457,10 +397,153 @@ void do_test()
 	}
 }
 
+struct create_market_order_command
+{
+	order_action_t action;
+	order_size_t  size;
+};
+
+struct create_pending_order_command
+{
+	order_action_t action;
+	order_type_t   type;
+	order_price_t  price;
+	order_size_t   size;
+};
+
+enum class command_type
+{
+	create_market_order
+,	create_pending_order
+,	list_pending_orders
+,	exit
+};
+
+struct user_command
+{
+	command_type type;
+
+	union
+	{
+		create_market_order_command cmo;
+		create_pending_order_command cpo;
+	};
+};
+
+user_command do_command()
+{
+	user_command command = {};
+	std::string s;
+
+	while(std::getline(std::cin, s))
+	{
+		if("list" == s)
+		{
+			command.type = command_type::list_pending_orders;
+
+			break;
+		}
+		else if("exit" == s || "quit" == s || "done" == s)
+		{
+			command.type = command_type::exit;
+
+			break;
+		}
+		else
+		{
+			std::string p = "(buy|sell) ([1-9][0-9]*)";
+			std::regex r(p);
+			std::smatch m;
+
+			bool b = std::regex_match(s, m, r);
+
+			if(b)
+			{
+				std::cout << "MATCH!" << std::endl;
+				std::cout << "m.str(0): '" << m.str(0) << "'" << std::endl;
+				std::cout << "m.str(1): '" << m.str(1) << "'" << std::endl;
+				std::cout << "m.str(2): '" << m.str(2) << "'" << std::endl;
+
+				order_action_t 	action 	= "buy" == m.str(1) ? order_action_t::buy : order_action_t::sell;
+				order_size_t 		size 		= std::stoi(m.str(2));
+
+				command.type = command_type::create_market_order;
+				command.cmo.action = action;
+				command.cmo.size = size;
+
+				break;
+			}
+			else
+			{
+				std::string p = "(buy|sell) (limit|stop) ([1-9][0-9]*) ([1-9][0-9]*)";
+				std::regex r(p);
+				std::smatch m;
+
+				bool b = std::regex_match(s, m, r);
+
+				if(b)
+				{
+					std::cout << "MATCH!" << std::endl;
+					std::cout << "m.str(0): '" << m.str(0) << "'" << std::endl;
+					std::cout << "m.str(1): '" << m.str(1) << "'" << std::endl;
+					std::cout << "m.str(2): '" << m.str(2) << "'" << std::endl;
+					std::cout << "m.str(3): '" << m.str(3) << "'" << std::endl;
+					std::cout << "m.str(4): '" << m.str(4) << "'" << std::endl;
+
+					order_action_t 	order_action 	= "buy"   == m.str(1) ? order_action_t::buy : order_action_t::sell;
+					order_type_t		order_type		= "limit" == m.str(2) ? order_type_t::limit : order_type_t::stop;
+					order_price_t 	order_price 	= std::stoi(m.str(3));
+					order_size_t 		order_size 		= std::stoi(m.str(4));
+
+					command.type = command_type::create_pending_order;
+					command.cpo.action = order_action;
+					command.cpo.type = order_type;
+					command.cpo.price = order_price;
+					command.cpo.size = order_size;
+
+					break;
+				}
+				else
+				{
+					std::cout << "MISMATCH..." << std::endl;
+				}
+			}
+		}
+	}
+
+	return command;
+}
+
+void do_market()
+{
+	market m;
+
+	while(true)
+	{
+		user_command cmd = do_command();
+
+		if(cmd.type == command_type::exit)
+		{
+			std::cout << "bye!" << std::endl;
+
+			return;
+		}
+		else if(cmd.type == command_type::create_market_order)
+		{
+			m.create_market_order(cmd.cmo.action, cmd.cmo.size);
+		}
+		else if(cmd.type == command_type::create_pending_order)
+		{
+			m.create_pending_order(cmd.cpo.action, cmd.cpo.type, cmd.cpo.price, cmd.cpo.size);
+		}
+		else if(cmd.type == command_type::list_pending_orders)
+		{
+
+		}
+	}
+}
+
 int main()
 {
-	std::cout << "sizeof(order): " << sizeof(order) << std::endl;
-
-	//do_test();
-	do_work();
+	do_market();
 }
