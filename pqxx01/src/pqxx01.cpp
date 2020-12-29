@@ -1,9 +1,8 @@
-#include "order.h"
 #include "market.h"
+#include "any_order.h"
 
 #include <iostream>
 #include <string>
-#include <pqxx/pqxx>
 #include <mutex>
 #include <chrono>
 #include <map>
@@ -415,7 +414,8 @@ enum class command_type
 {
 	create_market_order
 ,	create_pending_order
-,	list_pending_orders
+,	list_sell_limit_orders
+,	list_buy_limit_orders
 ,	exit
 };
 
@@ -437,9 +437,15 @@ user_command do_command()
 
 	while(std::getline(std::cin, s))
 	{
-		if("list" == s)
+		if("list sell limit" == s)
 		{
-			command.type = command_type::list_pending_orders;
+			command.type = command_type::list_sell_limit_orders;
+
+			break;
+		}
+		else if("list buy limit" == s)
+		{
+			command.type = command_type::list_buy_limit_orders;
 
 			break;
 		}
@@ -536,9 +542,13 @@ void do_market()
 		{
 			m.create_pending_order(cmd.cpo.action, cmd.cpo.type, cmd.cpo.price, cmd.cpo.size);
 		}
-		else if(cmd.type == command_type::list_pending_orders)
+		else if(cmd.type == command_type::list_sell_limit_orders)
 		{
-
+			m.list_sell_limit_orders(std::cout);
+		}
+		else if(cmd.type == command_type::list_buy_limit_orders)
+		{
+			m.list_buy_limit_orders(std::cout);
 		}
 	}
 }
