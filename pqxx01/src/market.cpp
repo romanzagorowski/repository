@@ -82,9 +82,44 @@ market::~market()
 	this->thread.join();
 }
 
-void market::process_request_create_market_order(const create_order_request& request)
+static
+std::string format_sql_insert_market_order(order_action_t order_action, order_size_t order_size)
 {
-	throw "Not implemented yet";
+	std::stringstream ss;
+	ss << "insert into any_order (action, type, price, size) values ('";
+	ss << order_action_to_string(order_action) << "', '";
+	ss << order_type_to_string(order_type_t::market) << "', ";
+	ss << 0 << ", ";
+	ss << order_size << ") returning id";
+
+	return ss.str();
+}
+
+static
+order_id_t insert_market_order(pqxx::work& w, order_action_t order_action, order_size_t order_size)
+{
+	const std::string sql = format_sql_insert_market_order(order_action, order_size);
+
+	order_id_t order_id = 0;
+
+	pqxx::result r = w.exec(sql);
+
+	for(const auto& a : r)
+	{
+		order_id = a[0].as<int>();
+	}
+
+	return order_id;
+}
+
+void market::process_request_create_market_order(const create_order_request& r)
+{
+	pqxx::work w(this->connection);
+
+	order_id_t order_id = insert_market_order(w, r.order_action, r.order_size);
+	assert(0 != order_id);
+
+	w.commit();
 }
 
 //order_id_t insert_instant_order(pqxx::work & w, order_action_t order_action, order_price_t order_price)
