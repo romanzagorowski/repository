@@ -6,10 +6,68 @@
 #include <iostream>
 #include <string>
 
+//-----------------------------------------------------------------------------
+
+static
+void read_sell_limit_orders(
+	pqxx::connection& c
+,	std::set<any_order, sell_limit_less>& s
+)
+{
+	const std::string sql = "select id, price, size from any_order where action = 'sell' and type = 'limit'";
+
+	pqxx::nontransaction nt(c);
+	pqxx::result r = nt.exec(sql);
+
+	for(const auto & a : r)
+	{
+		order_id_t id = a[0].as<int>();
+		order_action_t action = order_action_t::sell;
+		order_type_t type = order_type_t::limit;
+		order_price_t price = a[1].as<int>();
+		order_size_t size = a[2].as<int>();
+
+		any_order o{ id, action, type, price, size };
+
+		s.insert(o);
+	}
+}
+
+//-----------------------------------------------------------------------------
+
+static
+void read_buy_limit_orders(
+	pqxx::connection& c
+,	std::set<any_order, buy_limit_less>& s
+)
+{
+	const std::string sql = "select id, price, size from any_order where action = 'buy' and type = 'limit'";
+
+	pqxx::nontransaction nt(c);
+	pqxx::result r = nt.exec(sql);
+
+	for(const auto & a : r)
+	{
+		order_id_t id = a[0].as<int>();
+		order_action_t action = order_action_t::buy;
+		order_type_t type = order_type_t::limit;
+		order_price_t price = a[1].as<int>();
+		order_size_t size = a[2].as<int>();
+
+		any_order o{ id, action, type, price, size };
+
+		s.insert(o);
+	}
+}
+
+//-----------------------------------------------------------------------------
+
 market::market() :
 	connection("dbname=pqxx01")
 ,	thread(&market::process_request_thread, this)
 {
+	read_sell_limit_orders(this->connection, this->sell_limit_orders);
+	read_buy_limit_orders(this->connection, this->buy_limit_orders);
 }
 
 market::~market()
@@ -165,7 +223,7 @@ void market::process_request_thread()
 	}
 }
 
-void market::create_market_order(order_action_t order_action, order_size_t order_size)
+void market::create_market_order_request(order_action_t order_action, order_size_t order_size)
 {
 	create_order_request request(order_action, order_size);
 
@@ -180,7 +238,7 @@ void market::create_market_order(order_action_t order_action, order_size_t order
 	}
 }
 
-void market::create_pending_order(order_action_t order_action, order_type_t order_type, order_price_t order_price, order_size_t order_size)
+void market::create_pending_order_request(order_action_t order_action, order_type_t order_type, order_price_t order_price, order_size_t order_size)
 {
 	create_order_request request(order_action, order_type, order_price, order_size);
 
@@ -201,7 +259,8 @@ void market::list_sell_limit_orders(std::ostream& os)
 
 	for(const auto& o : this->sell_limit_orders)
 	{
-		os << o << std::endl;
+		//os << o << std::endl;
+		os << o.price << ", " << o.id << ", " << o.size << std::endl;
 	}
 }
 
@@ -211,6 +270,7 @@ void market::list_buy_limit_orders(std::ostream& os)
 
 	for(const auto& o : this->buy_limit_orders)
 	{
-		os << o << std::endl;
+		//os << o << std::endl;
+		os << o.price << ", " << o.id << ", " << o.size << std::endl;
 	}
 }

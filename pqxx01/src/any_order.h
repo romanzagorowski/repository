@@ -4,7 +4,7 @@
 #include <string>
 #include <ostream>
 
-typedef std::int64_t order_id_t;
+typedef std::int32_t order_id_t;
 typedef std::int32_t order_price_t;
 typedef std::int32_t order_size_t;
 
@@ -28,6 +28,6 @@ public:
 std::string order_type_to_string(const order_type_t order_type);
 std::string order_action_to_string(const order_action_t order_action);
 
-bool operator < (const any_order& o1, const any_order& o2);
+//bool operator < (const any_order& o1, const any_order& o2);
 
 std::ostream& operator << (std::ostream& os, const any_order& o);

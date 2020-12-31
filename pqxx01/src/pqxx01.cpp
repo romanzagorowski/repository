@@ -489,12 +489,12 @@ user_command do_command()
 
 				if(b)
 				{
-					std::cout << "MATCH!" << std::endl;
-					std::cout << "m.str(0): '" << m.str(0) << "'" << std::endl;
-					std::cout << "m.str(1): '" << m.str(1) << "'" << std::endl;
-					std::cout << "m.str(2): '" << m.str(2) << "'" << std::endl;
-					std::cout << "m.str(3): '" << m.str(3) << "'" << std::endl;
-					std::cout << "m.str(4): '" << m.str(4) << "'" << std::endl;
+//					std::cout << "MATCH!" << std::endl;
+//					std::cout << "m.str(0): '" << m.str(0) << "'" << std::endl;
+//					std::cout << "m.str(1): '" << m.str(1) << "'" << std::endl;
+//					std::cout << "m.str(2): '" << m.str(2) << "'" << std::endl;
+//					std::cout << "m.str(3): '" << m.str(3) << "'" << std::endl;
+//					std::cout << "m.str(4): '" << m.str(4) << "'" << std::endl;
 
 					order_action_t 	order_action 	= "buy"   == m.str(1) ? order_action_t::buy : order_action_t::sell;
 					order_type_t		order_type		= "limit" == m.str(2) ? order_type_t::limit : order_type_t::stop;
@@ -536,11 +536,11 @@ void do_market()
 		}
 		else if(cmd.type == command_type::create_market_order)
 		{
-			m.create_market_order(cmd.cmo.action, cmd.cmo.size);
+			m.create_market_order_request(cmd.cmo.action, cmd.cmo.size);
 		}
 		else if(cmd.type == command_type::create_pending_order)
 		{
-			m.create_pending_order(cmd.cpo.action, cmd.cpo.type, cmd.cpo.price, cmd.cpo.size);
+			m.create_pending_order_request(cmd.cpo.action, cmd.cpo.type, cmd.cpo.price, cmd.cpo.size);
 		}
 		else if(cmd.type == command_type::list_sell_limit_orders)
 		{

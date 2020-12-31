@@ -40,10 +40,12 @@ std::string order_action_to_string(const order_action_t order_action)
 	return "";
 }
 
+/*
 bool operator < (const any_order& o1, const any_order& o2)
 {
 	return (o1.price < o2.price) || (o1.price == o2.price && o1.id < o2.id);
 }
+*/
 
 std::ostream& operator << (std::ostream& os, const any_order& o)
 {

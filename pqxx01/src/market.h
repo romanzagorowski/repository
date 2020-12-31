@@ -9,6 +9,23 @@
 #include <thread>
 #include <pqxx/pqxx>
 #include <set>
+#include <functional>
+
+struct buy_limit_less
+{
+	bool operator () (const any_order& o1, const any_order& o2) const
+	{
+		return (o1.price > o2.price) || (o1.price == o2.price && o1.id < o2.id);
+	}
+};
+
+struct sell_limit_less
+{
+	bool operator () (const any_order& o1, const any_order& o2) const
+	{
+		return (o1.price < o2.price) || (o1.price == o2.price && o1.id < o2.id);
+	}
+};
 
 class market
 {
@@ -32,11 +49,11 @@ private:
 	std::thread thread;
 
 private:
-	std::mutex			buy_limit_orders_mutex;
-	std::set<any_order>	buy_limit_orders;
+	std::mutex							buy_limit_orders_mutex;
+	std::set<any_order,	buy_limit_less>	buy_limit_orders;
 
-	std::mutex			sell_limit_orders_mutex;
-	std::set<any_order> sell_limit_orders;
+	std::mutex								sell_limit_orders_mutex;
+	std::set<any_order, sell_limit_less>	sell_limit_orders;
 
 private:
 	void process_request_thread();
@@ -52,8 +69,8 @@ public:
 	~market();
 
 public:
-	void create_market_order(order_action_t action, order_size_t size);
-	void create_pending_order(order_action_t action, order_type_t type, order_price_t price, order_size_t size);
+	void create_market_order_request(order_action_t action, order_size_t size);
+	void create_pending_order_request(order_action_t action, order_type_t type, order_price_t price, order_size_t size);
 
 	void list_sell_limit_orders(std::ostream& os);
 	void list_buy_limit_orders(std::ostream& os);
